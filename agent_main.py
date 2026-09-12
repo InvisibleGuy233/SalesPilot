@@ -1,9 +1,15 @@
 from llama_cloud import LlamaCloud
 import file_extraction, milvus_create, milvus_insert, langgraph_agent
+import re
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
+def normalize(filename):
+    name, ext = filename.rsplit('.', 1)  
+    name = re.sub(r'\(\d+\)$', '', name) 
+    return f"{name}.{ext}"
 
 def offline_doc_processing(file_list):
     # 先离线处理files into chunks
@@ -11,11 +17,17 @@ def offline_doc_processing(file_list):
     db_client = langgraph_agent.get_db_client()
     milvus_create.create_collection(db_client)
     
+    file_set = set()
+    
     for file in file_list:
+        norm_file = normalize(file)
+        if norm_file in file_set:
+            continue
         md_file = file_extraction.extract_text_into_md(client, file)
         chunks = file_extraction.split_chunks(md_file)
         
         milvus_insert.insert_data(db_client, chunks)
+        file_set.add(norm_file)
 
         
 if __name__ == '__main__':

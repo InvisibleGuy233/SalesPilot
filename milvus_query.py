@@ -3,11 +3,11 @@ from pymilvus import Function, FunctionType, AnnSearchRequest
 import numpy as np
 
 def hybrid_search(db_client, query_text, top_k=5):
-    embedding = np.array([random.random() for _ in range(config.EMBEDDING_DIM)], dtype=np.float32).tolist()
+    # embedding = np.array([random.random() for _ in range(config.EMBEDDING_DIM)], dtype=np.float32).tolist()
     # text semantic search (dense)
     search_param_1 = {
-        # "data": [generate_embedding(query_text)],
-        "data": [embedding],
+        "data": [generate_embedding(query_text)],
+        # "data": [embedding],
         "anns_field": "embedding",
         "param": {"nprobe": 10},
         "limit": 10
