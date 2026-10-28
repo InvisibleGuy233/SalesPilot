@@ -6,7 +6,10 @@ description: 将其他格式的文件提取并
 def extract_text_into_md(client, file): 
     result = client.parsing.parse(
         upload_file=file,
-        tier="agentic_plus",
+        tier="agentic",
+        agentic_options={
+            "custom_prompt": "Ignore all page headers and footers. Do not extract any page numbers, document titles, dates, or other information that repeatedly appears at the top or bottom of pages."
+        },
         version="latest",
         expand=['Markdown']
     )
@@ -14,10 +17,7 @@ def extract_text_into_md(client, file):
     for page in result.markdown.pages:
         all_text += page.markdown
     
-    file_name = file.split('\\')[-1]
-    md_file_list = file_name.split('.')
-    md_file_list[-1] = 'md'
-    md_file = '.'.join(md_file_list)
+    md_file = file.parent / (file.stem + ".md")
     with open(md_file, 'w', encoding='utf-8') as f:
         f.write(all_text)
     return md_file
@@ -69,8 +69,28 @@ def split_big_chunk(chunk, max_size=256):
 def get_heading(text, level):
     heading = text.split("\n", 1)[0]
     return '#' * level + heading
-        
-def split_chunks(md_file, max_size=256):
+
+def get_heading_split(higher_level_heading, lower_level_heading, level, source):
+    for heading_content in higher_level_heading:
+        heading_text = heading_content["text"]
+        if not heading_text:
+            continue
+        # 把所有# 前都加上\n， 避开其他标题
+        pattern = r'(?<![#\n])' + re.escape('#' * level + ' ')
+        judge = '\n' + '#' * level + ' '
+        heading_text = re.sub(pattern, judge, heading_text)
+        if judge in heading_text:
+            for content in re.split(judge, heading_text):
+                if level == 1: 
+                    heading = get_heading(content, level)
+                else:
+                    heading = heading_content["heading"] + ' ' + get_heading(content, level)
+                lower_level_heading.append({"text": content, "heading": heading, "source": source})
+        else:
+            lower_level_heading.append(heading_content)
+    
+
+def split_chunks(md_file, max_size=512):
     '''
     按照标题先分类，先分一级标题，内容里有二级标题按二级标题分，然后判断每块是否过长,过长再按max_size 分，但保留表格完整度
     chunks append字典，包括text, source, 以及heading
@@ -78,46 +98,33 @@ def split_chunks(md_file, max_size=256):
     with open(md_file, 'r', encoding='utf-8') as f:
         all_text = f.read()
     
-    all_text = '\n' + all_text
+    # 去掉# 2 Product Overview 之前的所有内容，这些内容都是重复的没用的内容
+    manual_start = '# 2 Product Overview'
+    if 'User Manual' in md_file.name:
+        while manual_start in all_text:
+            all_text = all_text.split(manual_start, 1)[1]
+        all_text = manual_start + all_text
+    
+    init_split = [{'text': all_text, 'heading': '', 'source': ''}]
+    
     heading1_split = []
-    for heading1_content in re.split("\n# ", all_text):
-        heading1_split.append({"text": heading1_content, "heading": get_heading(heading1_content, 1), "source":md_file})
+    get_heading_split(init_split, heading1_split, 1, md_file.name)
+    
     heading2_split = []
+    get_heading_split(heading1_split, heading2_split, 2, md_file.name)
     
+    heading3_split = []
+    get_heading_split(heading2_split, heading3_split, 3, md_file.name)
     
-    for heading1_content in heading1_split:
-        if not heading1_content["text"]:
-            continue
-        if '\n## ' in heading1_content["text"]:
-            for heading2_content in re.split("\n## ", heading1_content["text"]):
-                heading2_split.append({"text": heading2_content, "heading": heading1_content["heading"] + ' ' + get_heading(heading2_content, 2), "source":md_file})
-        else:
-            heading2_split.append(heading1_content)
     chunks = []
-            
-    for heading2_content in heading2_split:
-        if not heading2_content["text"]:
+    for heading3_content in heading3_split:
+        if not heading3_content["text"]:
             continue
-        if len(heading2_content["text"]) > max_size:
-            for chunk_content in split_big_chunk(heading2_content["text"], max_size):
-                chunks.append({"text": chunk_content, "heading": heading2_content["heading"], "source": md_file})
+        if len(heading3_content["text"]) > max_size:
+            for chunk_content in split_big_chunk(heading3_content["text"], max_size):
+                chunks.append({"text": chunk_content, "heading": heading3_content["heading"], "source": md_file.name})
         else:
-            chunks.append(heading2_content)
+            chunks.append(heading3_content)
     
     return chunks
-
-# if __name__ == '__main__':
-#     client = LlamaCloud(api_key=config.LLAMA_CLOUD_API_KEY)
-    
-#     file = "./星辰电动ES9·未来旗舰电动SUV产品介绍.pdf"
-#     file = "./汽车车身轻量化技术研究现状——基于材料、结构与制造工艺的综述.pptx"
-#     extract_text_into_md(client, file)
-        
-#     md_file = './星辰电动ES9·未来旗舰电动SUV产品介绍.md'
-#     chunks = split_chunks(md_file)
-#     with open('rec.txt', 'w', encoding='utf-8') as f:
-#         for i, chunk in enumerate(chunks):
-#             f.write(f'\n====================Chunk No.{i}=================================\n')
-#             f.write(str(chunk))
-    
     

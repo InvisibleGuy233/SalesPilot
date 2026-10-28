@@ -58,7 +58,7 @@ def get_topk_ans(db_client, query, top_k=5):
             ids.append(hit['id'])
     else:
         return
-    text = ''
+    text = f'user query: {query}, 以下是RAG检索出的片段：\n'
     
     res = db_client.query(
         collection_name=config.COLLECTION_NAME,
@@ -94,13 +94,3 @@ def generate_user_answer(llm_client, db_client, query, top_k=5):
         ]
     )
     return completion.choices[0].message.content
-    
-
-# if __name__ == '__main__':
-#     import milvus_create
-#     collection = milvus_create.create_collection()
-#     collection.load()
-    
-#     query_text = "未来旗舰电动SUV产品经济版要多少钱？"
-#     res = vector_search(collection, query_text, top_k=10)
-#     print(res)

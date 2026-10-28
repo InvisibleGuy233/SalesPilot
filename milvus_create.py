@@ -71,15 +71,3 @@ def create_collection(db_client):
         schema=create_schema(),
         index_params=create_index(db_client)
     )
-
-# if __name__ == '__main__':
-#     connect_milvus()
-        
-#     collection = create_collection()
-    
-#     create_index(collection)
-    
-#     md_file = './星辰电动ES9·未来旗舰电动SUV产品介绍.md'
-#     chunks = file_extraction.split_chunks(md_file)
-    
-#     insert_data(collection, chunks)
